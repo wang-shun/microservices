@@ -1,0 +1,129 @@
+repositories {
+    jcenter()
+    mavenCentral()
+    flatDir {
+        dir('../transport/build/libs')
+        dir('../proxygen/build/libs')
+    }
+}
+
+buildscript {
+    repositories {
+        maven {
+            url 'https://plugins.gradle.org/m2/'
+        }
+    }
+    dependencies {
+        classpath 'net.ltgt.gradle:gradle-apt-plugin:0.12'
+        classpath 'gradle.plugin.net.minecrell:licenser:0.3'
+    }
+}
+
+apply plugin: 'java'
+apply plugin: 'idea'
+apply plugin: 'checkstyle'
+apply plugin: 'net.ltgt.apt'
+apply plugin: 'net.ltgt.apt-idea'
+apply plugin: 'maven'
+apply plugin: 'net.minecrell.licenser'
+
+sourceCompatibility = 1.9
+targetCompatibility = 1.9
+
+defaultTasks 'check', 'licenseFormat'
+
+javadoc {
+    exclude('module-info.java')
+}
+
+checkstyle {
+    toolVersion = '6.3'
+}
+
+group = 'com.aitusoftware'
+version = '0.1.0'
+ext.moduleName = 'com.aitusoftware.example'
+
+idea {
+    project {
+        configureAnnotationProcessing = true
+    }
+    module {
+        apt {
+            addGeneratedSourcesDirs = true
+            addAptDependencies = true
+
+            addCompileOnlyDependencies = false
+            mainDependenciesScope = 'PROVIDED'
+        }
+    }
+}
+
+compileJava {
+    doFirst {
+        options.compilerArgs = [
+                '--module-path', classpath.asPath,
+        ]
+    }
+    aptOptions.processors = [
+            'com.aitusoftware.proxygen.AnnotationPublisherGenerator',
+            'com.aitusoftware.proxygen.MessageGenerator']
+}
+
+compileTestJava {
+    doFirst {
+        options.compilerArgs = [
+                '--module-path', classpath.asPath,
+        ]
+    }
+    aptOptions.processors = [
+            'com.aitusoftware.proxygen.AnnotationPublisherGenerator',
+            'com.aitusoftware.proxygen.MessageGenerator']
+}
+
+test {
+    jvmArgs += ['--add-opens', 'java.base/sun.nio.ch=ALL-UNNAMED']
+}
+
+license {
+    header = project.file('HEADER.txt')
+    newLine = false
+    exclude '**/*.properties'
+    exclude '**/*.sql'
+}
+
+dependencies {
+    testCompile 'junit:junit:4.12'
+
+    testCompile "com.aitusoftware:proxygen:0.3.0"
+    testCompile "com.aitusoftware:transport:0.4.0"
+
+    compile 'org.hdrhistogram:HdrHistogram:2.1.9'
+    compile "com.aitusoftware:proxygen:0.3.0"
+    compile "com.aitusoftware:transport:0.4.0"
+    compile group: 'org.agrona', name: 'agrona', version: '0.9.7'
+    compile group: 'com.github.jnr', name: 'jnr-ffi', version: '2.1.7'
+
+    apt "com.aitusoftware:proxygen:0.3.0"
+    testApt "com.aitusoftware:proxygen:0.3.0"
+}
+
+task bundleJar(type: Jar) {
+    baseName = project.name + '-all'
+    from { configurations.compile.collect { it.isDirectory() ? it : zipTree(it) } }
+    with jar
+}
+
+task sourcesJar(type: Jar) {
+    classifier = 'sources'
+    from sourceSets.main.allSource
+}
+
+task javadocJar(type: Jar, dependsOn: javadoc) {
+    classifier = 'javadoc'
+    from javadoc.destinationDir
+}
+
+artifacts {
+    archives sourcesJar, javadocJar
+}
